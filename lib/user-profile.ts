@@ -23,6 +23,7 @@ export interface UserProfile {
   location: string
   timezone: string
   isAdmin: boolean
+  isSuperAdmin: boolean
   createdAt: Timestamp
   updatedAt: Timestamp
 }
@@ -66,7 +67,7 @@ export const LOCATIONS = [
   "New York, NY",
   "San Francisco, CA",
   "London, UK",
-  "Mumbai, India",
+  "Kolkata, India",
   "Singapore",
   "Toronto, Canada",
   "Sydney, Australia",
@@ -74,8 +75,10 @@ export const LOCATIONS = [
   "Other",
 ]
 
-// Default admin email
-const DEFAULT_ADMIN_EMAIL = "subhojeet.chowdhury.work@gmail.com"
+// Super Admin emails - these get automatic admin access on first login
+const SUPER_ADMIN_EMAILS = [
+  "subhojeet.chowdhury.work@gmail.com", 
+]
 
 // Get user profile from Firestore
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
@@ -100,7 +103,8 @@ export async function createUserProfile(
   profileData: UserProfileInput,
 ): Promise<void> {
   try {
-    const isAdmin = email === DEFAULT_ADMIN_EMAIL
+    const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(email)
+    const isAdmin = isSuperAdmin // Super admins are automatically admins
 
     const userProfile: Omit<UserProfile, "createdAt" | "updatedAt"> = {
       uid,
@@ -112,6 +116,7 @@ export async function createUserProfile(
       location: profileData.location,
       timezone: profileData.timezone,
       isAdmin,
+      isSuperAdmin,
     }
 
     await setDoc(doc(db, "user_profiles", uid), {
@@ -134,6 +139,50 @@ export async function updateUserProfile(uid: string, updates: Partial<UserProfil
     })
   } catch (error) {
     console.error("Error updating user profile:", error)
+    throw error
+  }
+}
+
+// Promote user to admin (only super admins can do this)
+export async function promoteUserToAdmin(uid: string, promotedBy: string): Promise<void> {
+  try {
+    // Check if the person promoting is a super admin
+    const promoterProfile = await getUserProfile(promotedBy)
+    if (!promoterProfile?.isSuperAdmin) {
+      throw new Error("Only super administrators can promote users to admin")
+    }
+
+    await updateDoc(doc(db, "user_profiles", uid), {
+      isAdmin: true,
+      updatedAt: serverTimestamp(),
+    })
+  } catch (error) {
+    console.error("Error promoting user to admin:", error)
+    throw error
+  }
+}
+
+// Demote user from admin (only super admins can do this)
+export async function demoteUserFromAdmin(uid: string, demotedBy: string): Promise<void> {
+  try {
+    // Check if the person demoting is a super admin
+    const demoterProfile = await getUserProfile(demotedBy)
+    if (!demoterProfile?.isSuperAdmin) {
+      throw new Error("Only super administrators can demote admins")
+    }
+
+    // Get the user being demoted
+    const userProfile = await getUserProfile(uid)
+    if (userProfile?.isSuperAdmin) {
+      throw new Error("Cannot demote super administrators")
+    }
+
+    await updateDoc(doc(db, "user_profiles", uid), {
+      isAdmin: false,
+      updatedAt: serverTimestamp(),
+    })
+  } catch (error) {
+    console.error("Error demoting user from admin:", error)
     throw error
   }
 }
@@ -169,5 +218,28 @@ export async function checkUserAdmin(uid: string): Promise<boolean> {
   } catch (error) {
     console.error("Error checking admin status:", error)
     return false
+  }
+}
+
+// Check if user is super admin
+export async function checkUserSuperAdmin(uid: string): Promise<boolean> {
+  try {
+    const profile = await getUserProfile(uid)
+    return profile?.isSuperAdmin || false
+  } catch (error) {
+    console.error("Error checking super admin status:", error)
+    return false
+  }
+}
+
+// Get admin users (for user management)
+export async function getAdminUsers(): Promise<UserProfile[]> {
+  try {
+    const q = query(collection(db, "user_profiles"), where("isAdmin", "==", true))
+    const querySnapshot = await getDocs(q)
+    return querySnapshot.docs.map((doc) => doc.data() as UserProfile)
+  } catch (error) {
+    console.error("Error getting admin users:", error)
+    return []
   }
 }

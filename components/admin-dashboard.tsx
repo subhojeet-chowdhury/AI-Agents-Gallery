@@ -35,6 +35,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   LogOut,
+  Settings,
 } from "lucide-react"
 import { getFeedbackData, getUserActivityData } from "@/lib/firebase-client"
 import { getAllUserProfiles } from "@/lib/user-profile"
@@ -43,6 +44,7 @@ import type { UserProfile } from "@/lib/user-profile"
 import { AGENT_CONFIG } from "@/lib/agent-config"
 import ExportModal from "@/components/export-modal"
 import ReportsGenerator from "@/components/reports-generator"
+import UserManagement from "@/components/user-management"
 
 interface DashboardStats {
   totalChats: number
@@ -65,7 +67,7 @@ interface AgentStats {
 }
 
 export default function AdminDashboard() {
-  const { user, logout } = useAuth()
+  const { user, userProfile, logout } = useAuth()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
@@ -266,7 +268,10 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <span className="text-xl font-semibold text-slate-900">Admin Dashboard</span>
-                <div className="text-sm text-slate-500">Enterprise AI Hub Analytics</div>
+                <div className="text-sm text-slate-500">
+                  Enterprise AI Hub Analytics
+                  {userProfile?.isSuperAdmin && " • Super Admin"}
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -344,12 +349,16 @@ export default function AdminDashboard() {
 
         {/* Main Dashboard Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="feedback">Feedback</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="users">
+              <Settings className="w-4 h-4 mr-2" />
+              Users
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -646,6 +655,28 @@ export default function AdminDashboard() {
           {/* Reports Tab */}
           <TabsContent value="reports" className="space-y-6">
             <ReportsGenerator feedback={feedbackData} activity={userActivity} />
+          </TabsContent>
+
+          {/* Users Tab - Only for Super Admins */}
+          <TabsContent value="users" className="space-y-6">
+            {userProfile?.isSuperAdmin ? (
+              <UserManagement />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Access Restricted</CardTitle>
+                  <CardDescription>Only super administrators can manage users</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <Settings className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">
+                      You need super administrator privileges to access user management.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>

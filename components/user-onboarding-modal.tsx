@@ -66,7 +66,7 @@ export default function UserOnboardingModal({ isOpen, onComplete }: UserOnboardi
     }
   }
 
-  const isDefaultAdmin = user?.email === "subhojeet.chowdhury.work@gmail.com"
+  const isSuperAdmin = user?.email === "subhojeet.chowdhury.work@gmail.com"
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
@@ -103,10 +103,10 @@ export default function UserOnboardingModal({ isOpen, onComplete }: UserOnboardi
                 <div>
                   <div className="font-medium">{user?.displayName || "User"}</div>
                   <div className="text-sm text-muted-foreground">{user?.email}</div>
-                  {isDefaultAdmin && (
+                  {isSuperAdmin && (
                     <Badge variant="secondary" className="mt-1 bg-purple-100 text-purple-800">
                       <Shield className="w-3 h-3 mr-1" />
-                      Administrator
+                      Super Administrator
                     </Badge>
                   )}
                 </div>
