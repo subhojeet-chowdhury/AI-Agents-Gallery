@@ -8,8 +8,13 @@ import AuthGuard from "@/components/auth-guard"
 import AgentCard from "@/components/agent-card"
 import ChatInterface from "@/components/chat-interface"
 import type { DialogflowAgent } from "@/lib/dialogflow"
-import { Building2, LogOut, Search, Filter } from "lucide-react"
+import { Building2, LogOut, Search, Filter, BarChart3 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import Link from "next/link"
+
+const ADMIN_EMAILS = [
+  "subhojeet.chowdhury.work@gmail.com",
+]
 
 export default function DashboardPage() {
   const { user, logout } = useAuth()
@@ -17,10 +22,14 @@ export default function DashboardPage() {
   const [selectedAgent, setSelectedAgent] = useState<DialogflowAgent | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     fetchAgents()
-  }, [])
+    if (user) {
+      setIsAdmin(ADMIN_EMAILS.includes(user.email || ""))
+    }
+  }, [user])
 
   const fetchAgents = async () => {
     try {
@@ -74,9 +83,17 @@ export default function DashboardPage() {
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                   <Building2 className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-semibold text-slate-900">Employee Self Service</span>
+                <span className="text-xl font-semibold text-slate-900">Enterprise AI Hub</span>
               </div>
               <div className="flex items-center space-x-4">
+                {isAdmin && (
+                  <Link href="/admin">
+                    <Button variant="outline" size="sm" className="border-slate-300 text-slate-700 hover:bg-slate-50">
+                      <BarChart3 className="w-4 h-4 mr-2" />
+                      Admin Dashboard
+                    </Button>
+                  </Link>
+                )}
                 <div className="flex items-center space-x-3 px-3 py-2 bg-slate-50 rounded-lg">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.photoURL || ""} alt={user?.displayName || ""} />
@@ -107,7 +124,7 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Page Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Agent Gallery</h1>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">AI Assistant Gallery</h1>
             <p className="text-lg text-slate-600">Choose a specialized AI agent to help with your workplace needs</p>
           </div>
 
