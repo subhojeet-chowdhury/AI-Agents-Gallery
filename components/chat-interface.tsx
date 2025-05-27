@@ -20,27 +20,42 @@ import {
   GraduationCap,
   Calendar,
   Bot,
+  ThumbsUp,
+  ThumbsDown,
+  MessageSquare,
 } from "lucide-react"
 import type { DialogflowAgent, ChatMessage } from "@/lib/dialogflow"
 import { useAuth } from "@/contexts/auth-context"
+import FeedbackModal from "@/components/feedback-modal"
+import { logUserActivity, submitFeedback } from "@/lib/firebase-client"
+import { toast } from "@/hooks/use-toast"
 
 interface ChatInterfaceProps {
   agent: DialogflowAgent
   onBack: () => void
 }
 
+interface ExtendedChatMessage extends ChatMessage {
+  feedback?: "positive" | "negative" | null
+  feedbackSubmitted?: boolean
+}
+
 export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
   const { user } = useAuth()
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<ExtendedChatMessage[]>([
     {
       id: "1",
       text: `Hello! I'm ${agent.name}. ${agent.description} How can I help you today?`,
       isUser: false,
       timestamp: new Date(),
+      feedback: null,
+      feedbackSubmitted: false,
     },
   ])
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [chatStartTime] = useState(Date.now())
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const sessionId = useRef(`${user?.uid}-${agent.id}-${Date.now()}`)
 
@@ -76,10 +91,24 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
     scrollToBottom()
   }, [messages])
 
+  // Log chat start activity
+  useEffect(() => {
+    if (user) {
+      logUserActivity({
+        userId: user.uid,
+        userName: user.displayName || "Anonymous",
+        userEmail: user.email || "",
+        action: "chat_start",
+        agentId: agent.id,
+        sessionId: sessionId.current,
+      })
+    }
+  }, [user, agent.id])
+
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
 
-    const userMessage: ChatMessage = {
+    const userMessage: ExtendedChatMessage = {
       id: Date.now().toString(),
       text: inputMessage,
       isUser: true,
@@ -109,11 +138,13 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
 
       const data = await response.json()
 
-      const botMessage: ChatMessage = {
+      const botMessage: ExtendedChatMessage = {
         id: (Date.now() + 1).toString(),
         text: data.fulfillmentText,
         isUser: false,
         timestamp: new Date(),
+        feedback: null,
+        feedbackSubmitted: false,
         agentResponse: {
           fulfillmentText: data.fulfillmentText,
           intent: data.intent,
@@ -124,15 +155,75 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
       setMessages((prev) => [...prev, botMessage])
     } catch (error) {
       console.error("Error sending message:", error)
-      const errorMessage: ChatMessage = {
+      const errorMessage: ExtendedChatMessage = {
         id: (Date.now() + 1).toString(),
         text: "Sorry, I encountered an error. Please try again.",
         isUser: false,
         timestamp: new Date(),
+        feedback: null,
+        feedbackSubmitted: false,
       }
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleQuickFeedback = async (messageId: string, feedbackType: "positive" | "negative") => {
+    if (!user) return
+
+    // Update message with feedback
+    setMessages((prev) =>
+      prev.map((msg) => (msg.id === messageId ? { ...msg, feedback: feedbackType, feedbackSubmitted: true } : msg)),
+    )
+
+    try {
+      // Submit quick feedback to Firebase
+      await submitFeedback({
+        userId: user.uid,
+        userName: user.displayName || "Anonymous",
+        userEmail: user.email || "",
+        agentId: agent.id,
+        agentName: agent.name,
+        sessionId: sessionId.current,
+        rating: feedbackType === "positive" ? 5 : 2, // Quick mapping
+        comment: `Quick feedback: ${feedbackType}`,
+        messageCount: messages.filter((m) => m.isUser).length,
+        chatDuration: Math.floor((Date.now() - chatStartTime) / 1000),
+      })
+
+      // Log feedback activity
+      await logUserActivity({
+        userId: user.uid,
+        userName: user.displayName || "Anonymous",
+        userEmail: user.email || "",
+        action: "feedback_submit",
+        agentId: agent.id,
+        sessionId: sessionId.current,
+        metadata: { type: "quick", feedback: feedbackType, messageId },
+      })
+
+      toast({
+        title: "Feedback Received",
+        description: `Thank you for the ${feedbackType} feedback!`,
+      })
+
+      // If negative feedback, optionally show detailed feedback modal
+      if (feedbackType === "negative") {
+        setTimeout(() => {
+          toast({
+            title: "Help us improve",
+            description: "Would you like to provide more details?",
+            action: (
+              <Button size="sm" onClick={() => setShowFeedbackModal(true)}>
+                Give Details
+              </Button>
+            ),
+          })
+        }, 1000)
+      }
+    } catch (error) {
+      console.error("Error submitting quick feedback:", error)
     }
   }
 
@@ -142,6 +233,9 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
       sendMessage()
     }
   }
+
+  const getChatDuration = () => Math.floor((Date.now() - chatStartTime) / 1000)
+  const getMessageCount = () => messages.filter((m) => m.isUser).length
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
@@ -169,6 +263,15 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFeedbackModal(true)}
+              className="text-slate-600 hover:text-blue-600 border-slate-300"
+            >
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Feedback
+            </Button>
             <Button variant="ghost" size="sm" className="text-slate-600">
               <Minimize2 className="h-4 w-4" />
             </Button>
@@ -200,15 +303,52 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
                   </div>
                 )}
               </div>
-              <div
-                className={`rounded-2xl px-4 py-3 shadow-sm ${
-                  message.isUser ? "bg-blue-600 text-white" : "bg-white text-slate-900 border border-slate-200"
-                }`}
-              >
-                <div className="text-sm leading-relaxed">{message.text}</div>
-                <div className={`text-xs mt-2 ${message.isUser ? "text-blue-100" : "text-slate-500"}`}>
-                  {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              <div className="flex flex-col space-y-2">
+                <div
+                  className={`rounded-2xl px-4 py-3 shadow-sm ${
+                    message.isUser ? "bg-blue-600 text-white" : "bg-white text-slate-900 border border-slate-200"
+                  }`}
+                >
+                  <div className="text-sm leading-relaxed">{message.text}</div>
+                  <div className={`text-xs mt-2 ${message.isUser ? "text-blue-100" : "text-slate-500"}`}>
+                    {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
                 </div>
+
+                {/* Quick Feedback Buttons for AI responses */}
+                {!message.isUser && message.id !== "1" && (
+                  <div className="flex items-center space-x-2 ml-2">
+                    {!message.feedbackSubmitted ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleQuickFeedback(message.id, "positive")}
+                          className="h-8 px-2 text-slate-500 hover:text-green-600 hover:bg-green-50"
+                        >
+                          <ThumbsUp className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleQuickFeedback(message.id, "negative")}
+                          className="h-8 px-2 text-slate-500 hover:text-red-600 hover:bg-red-50"
+                        >
+                          <ThumbsDown className="h-3 w-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex items-center space-x-1 text-xs text-slate-500">
+                        {message.feedback === "positive" ? (
+                          <ThumbsUp className="h-3 w-3 text-green-600" />
+                        ) : (
+                          <ThumbsDown className="h-3 w-3 text-red-600" />
+                        )}
+                        <span>Feedback received</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -257,8 +397,21 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        <div className="text-xs text-slate-500 mt-2 text-center">Press Enter to send • Shift + Enter for new line</div>
+        <div className="text-xs text-slate-500 mt-2 text-center">
+          Press Enter to send • Shift + Enter for new line • Use 👍👎 for quick feedback
+        </div>
       </div>
+
+      {/* Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        agentId={agent.id}
+        agentName={agent.name}
+        sessionId={sessionId.current}
+        messageCount={getMessageCount()}
+        chatDuration={getChatDuration()}
+      />
     </div>
   )
 }
