@@ -7,29 +7,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import AuthGuard from "@/components/auth-guard"
 import AgentCard from "@/components/agent-card"
 import ChatInterface from "@/components/chat-interface"
+import UserOnboardingModal from "@/components/user-onboarding-modal"
 import type { DialogflowAgent } from "@/lib/dialogflow"
 import { Building2, LogOut, Search, Filter, BarChart3 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 
-const ADMIN_EMAILS = [
-  "subhojeet.chowdhury.work@gmail.com",
-]
-
 export default function DashboardPage() {
-  const { user, logout } = useAuth()
+  const { user, userProfile, needsOnboarding, refreshUserProfile, logout } = useAuth()
   const [agents, setAgents] = useState<DialogflowAgent[]>([])
   const [selectedAgent, setSelectedAgent] = useState<DialogflowAgent | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     fetchAgents()
-    if (user) {
-      setIsAdmin(ADMIN_EMAILS.includes(user.email || ""))
-    }
-  }, [user])
+  }, [])
 
   const fetchAgents = async () => {
     try {
@@ -51,6 +44,10 @@ export default function DashboardPage() {
 
   const handleBackToGallery = () => {
     setSelectedAgent(null)
+  }
+
+  const handleOnboardingComplete = async () => {
+    await refreshUserProfile()
   }
 
   const filteredAgents = agents.filter(
@@ -75,6 +72,9 @@ export default function DashboardPage() {
   return (
     <AuthGuard>
       <div className="min-h-screen bg-slate-50">
+        {/* User Onboarding Modal */}
+        {needsOnboarding && <UserOnboardingModal isOpen={needsOnboarding} onComplete={handleOnboardingComplete} />}
+
         {/* Header */}
         <div className="bg-white border-b border-slate-200 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -86,7 +86,7 @@ export default function DashboardPage() {
                 <span className="text-xl font-semibold text-slate-900">Enterprise AI Hub</span>
               </div>
               <div className="flex items-center space-x-4">
-                {isAdmin && (
+                {userProfile?.isAdmin && (
                   <Link href="/admin">
                     <Button variant="outline" size="sm" className="border-slate-300 text-slate-700 hover:bg-slate-50">
                       <BarChart3 className="w-4 h-4 mr-2" />
@@ -103,7 +103,9 @@ export default function DashboardPage() {
                   </Avatar>
                   <div className="hidden sm:block">
                     <p className="text-sm font-medium text-slate-900">{user?.displayName}</p>
-                    <p className="text-xs text-slate-500">{user?.email}</p>
+                    <p className="text-xs text-slate-500">
+                      {userProfile?.department} • {userProfile?.role}
+                    </p>
                   </div>
                 </div>
                 <Button
@@ -126,6 +128,11 @@ export default function DashboardPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">AI Assistant Gallery</h1>
             <p className="text-lg text-slate-600">Choose a specialized AI agent to help with your workplace needs</p>
+            {userProfile && (
+              <p className="text-sm text-slate-500 mt-2">
+                Welcome back, {userProfile.displayName} from {userProfile.department}
+              </p>
+            )}
           </div>
 
           {/* Search and Filter */}

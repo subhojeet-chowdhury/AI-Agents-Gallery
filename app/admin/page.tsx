@@ -8,32 +8,25 @@ import AdminDashboard from "@/components/admin-dashboard"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Shield } from "lucide-react"
 
-const ADMIN_EMAILS = [
-  "subhojeet.chowdhury.work@gmail.com",
-]
-
 export default function AdminPage() {
-  const { user } = useAuth()
+  const { user, userProfile, loading: authLoading } = useAuth()
   const router = useRouter()
-  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (user) {
-      const userIsAdmin = ADMIN_EMAILS.includes(user.email || "")
-      setIsAdmin(userIsAdmin)
+    if (!authLoading) {
       setLoading(false)
 
-      if (!userIsAdmin) {
-        // Redirect non-admin users after a delay
+      // Redirect non-admin users after a delay
+      if (userProfile && !userProfile.isAdmin) {
         setTimeout(() => {
           router.push("/dashboard")
         }, 3000)
       }
     }
-  }, [user, router])
+  }, [userProfile, authLoading, router])
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-lg text-slate-600">Checking admin access...</div>
@@ -41,7 +34,7 @@ export default function AdminPage() {
     )
   }
 
-  if (!isAdmin) {
+  if (!userProfile?.isAdmin) {
     return (
       <AuthGuard>
         <div className="min-h-screen flex items-center justify-center bg-slate-50">
