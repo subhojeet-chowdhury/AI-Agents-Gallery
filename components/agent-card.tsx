@@ -42,7 +42,7 @@ export default function AgentCard({ agent, onChatClick }: AgentCardProps) {
         <div className="flex justify-center mb-4">
           <div className="relative">
             <div
-              className={`h-16 w-16 bg-blue-500 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg`}
+              className={`h-16 w-16 ${agent.color} rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg`}
             >
               <IconComponent className="h-8 w-8 text-white" />
             </div>

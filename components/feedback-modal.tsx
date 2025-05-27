@@ -154,7 +154,7 @@ export default function FeedbackModal({
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Chat duration:</span>
               <span className="font-medium">
-                {Math.floor(chatDuration / 60)}m {chatDuration % 60}s
+                {chatDuration >= 60 ? `${Math.floor(chatDuration / 60)}m ${chatDuration % 60}s` : `${chatDuration}s`}
               </span>
             </div>
           </div>

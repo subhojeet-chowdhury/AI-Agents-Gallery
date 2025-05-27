@@ -27,12 +27,9 @@ import {
   Building2,
   Users,
   MessageSquare,
-  TrendingUp,
   Star,
   Clock,
   Activity,
-  BarChart3,
-  PieChartIcon,
   RefreshCw,
   Download,
   ThumbsUp,
@@ -42,6 +39,8 @@ import {
 import { getFeedbackData, getUserActivityData } from "@/lib/firebase-client"
 import type { ChatFeedback, UserActivity } from "@/lib/firebase-client"
 import { AGENT_CONFIG } from "@/lib/agent-config"
+import ExportModal from "@/components/export-modal"
+import ReportsGenerator from "@/components/reports-generator"
 
 interface DashboardStats {
   totalChats: number
@@ -60,12 +59,14 @@ interface AgentStats {
   totalFeedbacks: number
   positiveRating: number
   negativeRating: number
+  averageDuration: number
 }
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
   const [feedbackData, setFeedbackData] = useState<ChatFeedback[]>([])
   const [userActivity, setUserActivity] = useState<UserActivity[]>([])
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
@@ -100,7 +101,7 @@ export default function AdminDashboard() {
         totalFeedbacks: feedback.length,
         averageRating: Math.round(averageRating * 10) / 10,
         totalMessages,
-        averageChatDuration: feedback.length > 0 ? Math.round(totalDuration / feedback.length) : 0,
+        averageChatDuration: feedback.length > 0 ? Math.round(totalDuration / feedback.length) : 0, // This is already in seconds
       })
     } catch (error) {
       console.error("Error loading dashboard data:", error)
@@ -124,6 +125,7 @@ export default function AdminDashboard() {
     const averageRating = totalFeedbacks > 0 ? agentFeedback.reduce((sum, f) => sum + f.rating, 0) / totalFeedbacks : 0
     const positiveRating = agentFeedback.filter((f) => f.rating >= 4).length
     const negativeRating = agentFeedback.filter((f) => f.rating <= 2).length
+    const totalDuration = agentFeedback.reduce((sum, f) => sum + f.chatDuration, 0)
 
     return {
       agentId,
@@ -133,6 +135,7 @@ export default function AdminDashboard() {
       totalFeedbacks,
       positiveRating,
       negativeRating,
+      averageDuration: totalFeedbacks > 0 ? Math.round(totalDuration / totalFeedbacks) : 0, // in seconds
     }
   })
 
@@ -215,7 +218,7 @@ export default function AdminDashboard() {
                 <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
-              <Button variant="outline" size="sm" className="border-slate-300">
+              <Button variant="outline" size="sm" className="border-slate-300" onClick={() => setShowExportModal(true)}>
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
@@ -273,7 +276,11 @@ export default function AdminDashboard() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{Math.floor(dashboardStats.averageChatDuration / 60)}m</div>
+              <div className="text-2xl font-bold">
+                {dashboardStats.averageChatDuration >= 60
+                  ? `${Math.floor(dashboardStats.averageChatDuration / 60)}m ${dashboardStats.averageChatDuration % 60}s`
+                  : `${dashboardStats.averageChatDuration}s`}
+              </div>
               <p className="text-xs text-muted-foreground">Per chat session</p>
             </CardContent>
           </Card>
@@ -544,60 +551,18 @@ export default function AdminDashboard() {
 
           {/* Reports Tab */}
           <TabsContent value="reports" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Generate Reports</CardTitle>
-                <CardDescription>Create custom reports for different time periods</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button variant="outline" className="h-20 flex flex-col items-center justify-center">
-                    <BarChart3 className="w-6 h-6 mb-2" />
-                    <span>Usage Report</span>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col items-center justify-center">
-                    <PieChartIcon className="w-6 h-6 mb-2" />
-                    <span>Satisfaction Report</span>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col items-center justify-center">
-                    <TrendingUp className="w-6 h-6 mb-2" />
-                    <span>Performance Report</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Scheduled Reports</CardTitle>
-                <CardDescription>Automated reports sent to stakeholders</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <div className="font-medium">Weekly Summary</div>
-                      <div className="text-sm text-slate-600">Sent every Monday at 9:00 AM</div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      Active
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <div className="font-medium">Monthly Analytics</div>
-                      <div className="text-sm text-slate-600">Sent on the 1st of each month</div>
-                    </div>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      Active
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <ReportsGenerator feedback={feedbackData} activity={userActivity} />
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        feedback={feedbackData}
+        activity={userActivity}
+      />
     </div>
   )
 }

@@ -2,6 +2,14 @@ export const AGENT_CONFIG: Record<
   string,
   { agentId: string; name: string; description: string; capabilities: string[]; icon: string; color: string }
 > = {
+    "digital-workmate": {
+    agentId: "6ac26a0a-9c99-4e5f-82cd-3d977475411c",
+    name: "Digital Workmate",
+    description: "I'm your digital assistant for general workplace queries and productivity support.",
+    capabilities: ["General Assistance", "Productivity Tips", "Workplace Guidance", "Quick Help"],
+    icon: "Zap",
+    color: "bg-purple-500",
+  },
   "benefits-query": {
     agentId: "375770db-4e7a-4a54-914e-8ba4ac94408e",
     name: "Benefits Query Agent",
@@ -18,21 +26,13 @@ export const AGENT_CONFIG: Record<
     icon: "FileText",
     color: "bg-orange-500",
   },
-  "digital-workmate": {
-    agentId: "6ac26a0a-9c99-4e5f-82cd-3d977475411c",
-    name: "Digital Workmate",
-    description: "I'm your digital assistant for general workplace queries and productivity support.",
-    capabilities: ["General Assistance", "Productivity Tips", "Workplace Guidance", "Quick Help"],
-    icon: "Zap",
-    color: "bg-purple-500",
-  },
   "hr-policy": {
     agentId: "a3ebfe22-d0ad-497c-9404-41286060e00e",
     name: "HR Policy Agent",
     description: "I can help you understand HR policies, procedures, and company guidelines.",
     capabilities: ["HR Policies", "Procedures", "Guidelines", "Compliance"],
     icon: "Users",
-    color: "bg-blue-500",
+    color: "bg-orange-500",
   },
   "it-support": {
     agentId: "ef1b0521-684f-4256-8234-3f1de146fe1c",
@@ -40,7 +40,7 @@ export const AGENT_CONFIG: Record<
     description: "I can assist you with technical issues, software problems, and IT-related queries.",
     capabilities: ["Technical Support", "Software Issues", "Hardware Help", "System Access"],
     icon: "Monitor",
-    color: "bg-red-500",
+    color: "bg-blue-500",
   },
   "learning-development": {
     agentId: "75f1d40c-2032-4098-a2be-25fda3834aad",
@@ -48,7 +48,7 @@ export const AGENT_CONFIG: Record<
     description: "I can help you with training programs, skill development, and career growth opportunities.",
     capabilities: ["Training Programs", "Skill Development", "Career Growth", "Learning Resources"],
     icon: "GraduationCap",
-    color: "bg-indigo-500",
+    color: "bg-purple-500",
   },
   "leave-management": {
     agentId: "760f8806-6d55-482e-9865-7501b9fce718",
@@ -56,6 +56,6 @@ export const AGENT_CONFIG: Record<
     description: "I can assist you with leave applications, vacation planning, and time-off policies.",
     capabilities: ["Leave Applications", "Vacation Planning", "Time-off Policies", "Absence Management"],
     icon: "Calendar",
-    color: "bg-teal-500",
+    color: "bg-emerald-500",
   },
 }
