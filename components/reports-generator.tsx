@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   BarChart3,
   PieChartIcon,
@@ -21,10 +22,12 @@ import {
   Play,
   FileText,
   Download,
+  DollarSign,
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { ChatFeedback, UserActivity } from "@/lib/firebase-client"
+import { AGENT_CONFIG } from "@/lib/agent-config"
 import {
   generateUsageReport,
   generateSatisfactionReport,
@@ -44,6 +47,7 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
     end: new Date(),
   })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState<string>("all")
   const [scheduledReports, setScheduledReports] = useState([
     {
       id: "1",
@@ -94,6 +98,15 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
       includes: ["KPI dashboard", "Performance trends", "System metrics", "Efficiency analysis"],
     },
     {
+      id: "payroll",
+      title: "Payroll Agent Report",
+      description: "Specific analytics for the Payroll Query Agent",
+      icon: DollarSign,
+      color: "bg-green-500",
+      estimatedTime: "1-2 minutes",
+      includes: ["Payroll queries", "Common questions", "Resolution rates", "User satisfaction"],
+    },
+    {
       id: "comprehensive",
       title: "Comprehensive Report",
       description: "Complete analytics report with all available data",
@@ -108,16 +121,26 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
     setIsGenerating(true)
 
     try {
-      // Filter data by date range
-      const filteredFeedback = feedback.filter((f) => {
+      // Filter data by date range and agent if selected
+      let filteredFeedback = feedback.filter((f) => {
         const date = f.timestamp.toDate()
         return date >= dateRange.start && date <= dateRange.end
       })
 
-      const filteredActivity = activity.filter((a) => {
+      // Filter by agent if a specific one is selected
+      if (selectedAgent !== "all") {
+        filteredFeedback = filteredFeedback.filter((f) => f.agentId === selectedAgent)
+      }
+
+      let filteredActivity = activity.filter((a) => {
         const date = a.timestamp.toDate()
         return date >= dateRange.start && date <= dateRange.end
       })
+
+      // Filter activity by agent if selected
+      if (selectedAgent !== "all") {
+        filteredActivity = filteredActivity.filter((a) => a.agentId === selectedAgent)
+      }
 
       // Simulate report generation time
       await new Promise((resolve) => setTimeout(resolve, 2000))
@@ -131,6 +154,12 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
           break
         case "performance":
           generatePerformanceReport(filteredFeedback, filteredActivity)
+          break
+        case "payroll":
+          // Special report just for payroll agent
+          const payrollFeedback = filteredFeedback.filter((f) => f.agentId === "payroll-query")
+          const payrollActivity = filteredActivity.filter((a) => a.agentId === "payroll-query")
+          generateUsageReport(payrollFeedback, payrollActivity)
           break
         case "comprehensive":
           generatePDFReport({
@@ -163,7 +192,7 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
               <CardDescription>Select date range and report parameters</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Start Date</Label>
                   <Popover>
@@ -203,6 +232,23 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
                     </PopoverContent>
                   </Popover>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Agent</Label>
+                  <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Agents</SelectItem>
+                      {Object.entries(AGENT_CONFIG).map(([id, agent]) => (
+                        <SelectItem key={id} value={id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -212,6 +258,11 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
             {reportTypes.map((report) => {
               const IconComponent = report.icon
               const isSelected = selectedReport === report.id
+
+              // Hide payroll report if another agent is specifically selected
+              if (report.id === "payroll" && selectedAgent !== "all" && selectedAgent !== "payroll-query") {
+                return null
+              }
 
               return (
                 <Card
@@ -291,7 +342,7 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
                 {scheduledReports.map((report) => (
                   <div key={report.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 mb-2">
                         <h3 className="font-medium">{report.name}</h3>
                         <Badge variant={report.active ? "default" : "secondary"}>
                           {report.active ? "Active" : "Inactive"}
@@ -333,28 +384,55 @@ export default function ReportsGenerator({ feedback, activity }: ReportsGenerato
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="report-type">Report Type</Label>
-                  <select className="w-full p-2 border rounded-md" id="report-type">
-                    <option value="usage">Usage Report</option>
-                    <option value="satisfaction">Satisfaction Report</option>
-                    <option value="performance">Performance Report</option>
-                    <option value="comprehensive">Comprehensive Report</option>
-                  </select>
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select report type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="usage">Usage Report</SelectItem>
+                      <SelectItem value="satisfaction">Satisfaction Report</SelectItem>
+                      <SelectItem value="performance">Performance Report</SelectItem>
+                      <SelectItem value="payroll">Payroll Agent Report</SelectItem>
+                      <SelectItem value="comprehensive">Comprehensive Report</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="schedule">Schedule</Label>
-                  <select className="w-full p-2 border rounded-md" id="schedule">
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                  </select>
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="quarterly">Quarterly</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="time">Time</Label>
                   <Input id="time" type="time" defaultValue="09:00" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="agent-filter">Agent Filter</Label>
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Agents</SelectItem>
+                      {Object.entries(AGENT_CONFIG).map(([id, agent]) => (
+                        <SelectItem key={id} value={id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

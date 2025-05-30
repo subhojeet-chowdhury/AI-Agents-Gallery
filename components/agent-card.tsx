@@ -13,28 +13,26 @@ interface AgentCardProps {
 
 export default function AgentCard({ agent, onChatClick }: AgentCardProps) {
   // Get the icon component based on the agent's icon property
-  const getIconComponent = (iconName: string) => {
-    switch (iconName) {
+  const getIconComponent = () => {
+    switch (agent.icon) {
       case "Heart":
-        return Heart
+        return <Heart className="h-8 w-8 text-white" />
       case "FileText":
-        return FileText
+        return <FileText className="h-8 w-8 text-white" />
       case "Zap":
-        return Zap
+        return <Zap className="h-8 w-8 text-white" />
       case "Users":
-        return Users
+        return <Users className="h-8 w-8 text-white" />
       case "Monitor":
-        return Monitor
+        return <Monitor className="h-8 w-8 text-white" />
       case "GraduationCap":
-        return GraduationCap
+        return <GraduationCap className="h-8 w-8 text-white" />
       case "Calendar":
-        return Calendar
+        return <Calendar className="h-8 w-8 text-white" />
       default:
-        return Bot
+        return <Bot className="h-8 w-8 text-white" />
     }
   }
-
-  const IconComponent = getIconComponent(agent.icon)
 
   return (
     <Card className="h-full hover:shadow-lg transition-all duration-200 border-slate-200 hover:border-blue-300 bg-white group">
@@ -44,7 +42,7 @@ export default function AgentCard({ agent, onChatClick }: AgentCardProps) {
             <div
               className={`h-16 w-16 ${agent.color} rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg`}
             >
-              <IconComponent className="h-8 w-8 text-white" />
+              {getIconComponent()}
             </div>
             <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
               <div className="w-2 h-2 bg-white rounded-full"></div>

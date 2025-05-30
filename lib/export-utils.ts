@@ -70,6 +70,7 @@ export function exportActivityToCSV(activity: UserActivity[]) {
 }
 
 export function generateUsageReport(feedback: ChatFeedback[], activity: UserActivity[]) {
+  // Dynamically generate stats for all agents in the config
   const agentStats = Object.keys(AGENT_CONFIG).map((agentId) => {
     const agentFeedback = feedback.filter((f) => f.agentId === agentId)
     const agentActivity = activity.filter((a) => a.agentId === agentId)

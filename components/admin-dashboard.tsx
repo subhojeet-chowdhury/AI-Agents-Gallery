@@ -36,9 +36,11 @@ import {
   ThumbsDown,
   LogOut,
   Settings,
+  ArrowLeft,
 } from "lucide-react"
 import { getFeedbackData, getUserActivityData } from "@/lib/firebase-client"
 import { getAllUserProfiles } from "@/lib/user-profile"
+import { ensureAllAgentsInAnalytics } from "@/lib/initialize-agent-data"
 import type { ChatFeedback, UserActivity } from "@/lib/firebase-client"
 import type { UserProfile } from "@/lib/user-profile"
 import { AGENT_CONFIG } from "@/lib/agent-config"
@@ -86,6 +88,10 @@ export default function AdminDashboard() {
   const loadData = async () => {
     try {
       setRefreshing(true)
+
+      // Ensure all agents (including new ones) are initialized in analytics
+      await ensureAllAgentsInAnalytics()
+
       const [feedback, activity, profiles] = await Promise.all([
         getFeedbackData(undefined, 30), // Last 30 days
         getUserActivityData(30),
@@ -125,7 +131,7 @@ export default function AdminDashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  // Process data for charts
+  // Process data for charts - dynamically include all agents from config
   const agentStats: AgentStats[] = Object.keys(AGENT_CONFIG).map((agentId) => {
     const agentFeedback = feedbackData.filter((f) => f.agentId === agentId)
     const totalFeedbacks = agentFeedback.length
@@ -263,6 +269,10 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
+              <Button variant="ghost" size="sm" onClick={() => (window.location.href = "/dashboard")} className="mr-2">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Building2 className="w-5 h-5 text-white" />
               </div>
@@ -442,30 +452,11 @@ export default function AdminDashboard() {
 
           {/* Agents Tab */}
           <TabsContent value="agents" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Agent Performance</CardTitle>
-                <CardDescription>Performance metrics for each AI agent</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={agentStats}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="agentName" angle={-45} textAnchor="end" height={100} />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="totalChats" fill="#3B82F6" name="Total Chats" />
-                    <Bar dataKey="averageRating" fill="#10B981" name="Avg Rating" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
             {/* Agent Details Table */}
             <Card>
               <CardHeader>
-                <CardTitle>Agent Details</CardTitle>
+                <CardTitle>Agent Performance Overview</CardTitle>
+                <CardDescription>Detailed performance metrics for each AI agent</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -477,6 +468,7 @@ export default function AdminDashboard() {
                         <th className="text-left p-2">Avg Rating</th>
                         <th className="text-left p-2">Positive</th>
                         <th className="text-left p-2">Negative</th>
+                        <th className="text-left p-2">Avg Duration</th>
                         <th className="text-left p-2">Status</th>
                       </tr>
                     </thead>
@@ -504,6 +496,11 @@ export default function AdminDashboard() {
                             </div>
                           </td>
                           <td className="p-2">
+                            {agent.averageDuration >= 60
+                              ? `${Math.floor(agent.averageDuration / 60)}m ${agent.averageDuration % 60}s`
+                              : `${agent.averageDuration}s`}
+                          </td>
+                          <td className="p-2">
                             <Badge variant="secondary" className="bg-green-100 text-green-800">
                               Active
                             </Badge>
@@ -515,6 +512,53 @@ export default function AdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Charts Section - Side by Side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Total Chats Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <MessageSquare className="w-5 h-5 mr-2" />
+                    Total Chats by Agent
+                  </CardTitle>
+                  <CardDescription>Number of conversations handled by each agent</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={agentStats} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="agentName" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="totalChats" fill="#3B82F6" name="Total Chats" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Average Rating Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Star className="w-5 h-5 mr-2" />
+                    Average Rating by Agent
+                  </CardTitle>
+                  <CardDescription>User satisfaction ratings for each agent (out of 5)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={agentStats} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="agentName" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                      <YAxis domain={[0, 5]} />
+                      <Tooltip />
+                      <Bar dataKey="averageRating" fill="#10B981" name="Average Rating" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Feedback Tab */}

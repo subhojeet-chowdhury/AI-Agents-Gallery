@@ -23,10 +23,12 @@ import {
   ThumbsUp,
   ThumbsDown,
   MessageSquare,
+  DollarSign,
 } from "lucide-react"
 import type { DialogflowAgent, ChatMessage } from "@/lib/dialogflow"
 import { useAuth } from "@/contexts/auth-context"
 import FeedbackModal from "@/components/feedback-modal"
+import MarkdownRenderer from "@/components/markdown-renderer"
 import { logUserActivity, submitFeedback } from "@/lib/firebase-client"
 import { toast } from "@/hooks/use-toast"
 
@@ -76,6 +78,8 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
         return GraduationCap
       case "Calendar":
         return Calendar
+      case "DollarSign":
+        return DollarSign
       default:
         return Bot
     }
@@ -287,7 +291,7 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
         {messages.map((message) => (
           <div key={message.id} className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}>
             <div
-              className={`flex items-start space-x-3 max-w-[80%] ${message.isUser ? "flex-row-reverse space-x-reverse" : ""}`}
+              className={`flex items-start space-x-3 max-w-[85%] ${message.isUser ? "flex-row-reverse space-x-reverse" : ""}`}
             >
               <div className="flex-shrink-0">
                 {message.isUser ? (
@@ -309,7 +313,11 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
                     message.isUser ? "bg-blue-600 text-white" : "bg-white text-slate-900 border border-slate-200"
                   }`}
                 >
-                  <div className="text-sm leading-relaxed">{message.text}</div>
+                  {message.isUser ? (
+                    <div className="text-sm leading-relaxed">{message.text}</div>
+                  ) : (
+                    <MarkdownRenderer content={message.text} className="text-sm leading-relaxed" />
+                  )}
                   <div className={`text-xs mt-2 ${message.isUser ? "text-blue-100" : "text-slate-500"}`}>
                     {message.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </div>
