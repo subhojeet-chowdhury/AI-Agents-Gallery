@@ -133,6 +133,9 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
           message: inputMessage,
           sessionId: sessionId.current,
           agentId: agent.id,
+          // Add user context for personalization and security
+          userName: user?.displayName || "User",
+          userEmail: user?.email || "",
         }),
       })
 

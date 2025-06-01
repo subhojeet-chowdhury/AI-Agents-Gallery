@@ -3,13 +3,13 @@ import { createDialogflowCXClient, AGENT_CONFIG } from "@/lib/dialogflow"
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, sessionId, agentId } = await request.json()
+    const { message, sessionId, agentId, userName, userEmail } = await request.json()
 
     if (!message || !sessionId || !agentId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // agent configuration
+    // Get agent configuration
     const agentConfig = AGENT_CONFIG[agentId]
     if (!agentConfig) {
       return NextResponse.json({ error: "Invalid agent ID" }, { status: 400 })
@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Project ID not configured" }, { status: 500 })
     }
 
-    // session path for Dialogflow CX using the correct method
+    // Create session path for Dialogflow CX using the correct method
     const sessionPath = `projects/${projectId}/locations/${location}/agents/${agentConfig.agentId}/sessions/${sessionId}`
 
-    // request for Dialogflow CX
+    // Create the request for Dialogflow CX with user context
     const request_dialogflow = {
       session: sessionPath,
       queryInput: {
@@ -35,14 +35,28 @@ export async function POST(request: NextRequest) {
         },
         languageCode: "en",
       },
+      // Pass user context as parameters for personalization and security
+      queryParams: {
+        parameters: {
+          fields: {
+            "user-name": {
+              stringValue: userName || "User",
+            },
+            "user-email": {
+              stringValue: userEmail || "",
+            },
+          },
+        },
+      },
     }
 
     console.log(`Processing message for agent: ${agentId} (${agentConfig.agentId}), session: ${sessionId}`)
+    console.log(`User context: ${userName} (${userEmail})`)
     console.log(`Session path: ${sessionPath}`)
 
     const [response] = await client.detectIntent(request_dialogflow)
 
-    // Extracting response text from Dialogflow CX response
+    // Extract response text from Dialogflow CX response
     let fulfillmentText = "Sorry, I didn't understand that."
     if (response.queryResult?.responseMessages && response.queryResult.responseMessages.length > 0) {
       const firstMessage = response.queryResult.responseMessages[0]
@@ -58,6 +72,10 @@ export async function POST(request: NextRequest) {
       parameters: response.queryResult?.parameters,
       agentId: agentId,
       sessionId: sessionId,
+      userContext: {
+        userName,
+        userEmail,
+      },
     })
   } catch (error) {
     console.error("Dialogflow CX API error:", error)
