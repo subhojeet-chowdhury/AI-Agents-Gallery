@@ -3,6 +3,7 @@ import { AGENT_CONFIG } from "./agent-config"
 
 // Server-side Dialogflow CX client (for API routes)
 export function createDialogflowCXClient() {
+  // Build credentials object from individual environment variables
   const credentials = {
     type: "service_account",
     project_id: process.env.GOOGLE_CLOUD_PROJECT_ID,
@@ -58,4 +59,5 @@ export interface ChatMessage {
   }
 }
 
+// Re-export agent config
 export { AGENT_CONFIG }

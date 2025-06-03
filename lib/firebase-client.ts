@@ -137,29 +137,6 @@ export async function getFeedbackData(agentId?: string, days = 30) {
   }
 }
 
-export async function getAnalyticsData(days = 30) {
-  try {
-    const analyticsRef = collection(db, "agent_analytics")
-    const cutoffDate = new Date()
-    cutoffDate.setDate(cutoffDate.getDate() - days)
-
-    const q = query(
-      analyticsRef,
-      where("timestamp", ">=", Timestamp.fromDate(cutoffDate)),
-      orderBy("timestamp", "desc"),
-    )
-
-    const querySnapshot = await getDocs(q)
-    return querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as AgentAnalytics[]
-  } catch (error) {
-    console.error("Error fetching analytics data:", error)
-    return []
-  }
-}
-
 export async function getUserActivityData(days = 30) {
   try {
     const activityRef = collection(db, "user_activity")
