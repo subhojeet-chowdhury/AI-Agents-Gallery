@@ -1,7 +1,17 @@
 // Client-side Firebase for storing feedback and analytics
 import { initializeApp } from "firebase/app"
 import { getAuth, GoogleAuthProvider } from "firebase/auth"
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, Timestamp } from "firebase/firestore"
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
+  limit,
+  Timestamp,
+} from "firebase/firestore"
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -96,6 +106,7 @@ export async function saveConversation(conversation: Omit<Conversation, "id" | "
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+    console.log("Conversation saved with ID:", docRef.id)
     return docRef.id
   } catch (error) {
     console.error("Error saving conversation:", error)
@@ -110,6 +121,7 @@ export async function updateConversation(conversationId: string, updates: Partia
       ...updates,
       updatedAt: serverTimestamp(),
     })
+    console.log("Conversation updated:", conversationId)
   } catch (error) {
     console.error("Error updating conversation:", error)
     throw error
@@ -136,7 +148,8 @@ export async function saveMessage(sessionId: string, message: Omit<ConversationM
         }),
     }
 
-    await addDoc(collection(db, "conversation_messages"), cleanMessage)
+    const docRef = await addDoc(collection(db, "conversation_messages"), cleanMessage)
+    console.log("Message saved with ID:", docRef.id)
   } catch (error) {
     console.error("Error saving message:", error)
     throw error
@@ -155,13 +168,15 @@ export async function getUserConversations(userId: string, agentId?: string) {
       ...doc.data(),
     })) as Conversation[]
 
+    console.log(`Loaded ${conversations.length} conversations for user ${userId}`)
+
     // Filter by agentId if provided
     const filteredConversations = agentId ? conversations.filter((conv) => conv.agentId === agentId) : conversations
 
     // Sort on client side to avoid index requirements
     return filteredConversations.sort((a, b) => {
-      const aTime = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt.toString())
-      const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt.toString())
+      const aTime = a.updatedAt?.toDate?.() || new Date(a.updatedAt?.toString() || Date.now())
+      const bTime = b.updatedAt?.toDate?.() || new Date(b.updatedAt?.toString() || Date.now())
       return bTime.getTime() - aTime.getTime()
     })
   } catch (error) {
@@ -182,10 +197,12 @@ export async function getConversationMessages(sessionId: string) {
       ...doc.data(),
     })) as ConversationMessage[]
 
+    console.log(`Loaded ${messages.length} messages for session ${sessionId}`)
+
     // Sort on client side
     return messages.sort((a, b) => {
-      const aTime = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp.toString())
-      const bTime = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp.toString())
+      const aTime = a.timestamp?.toDate?.() || new Date(a.timestamp?.toString() || Date.now())
+      const bTime = b.timestamp?.toDate?.() || new Date(b.timestamp?.toString() || Date.now())
       return aTime.getTime() - bTime.getTime()
     })
   } catch (error) {
@@ -195,12 +212,16 @@ export async function getConversationMessages(sessionId: string) {
 }
 
 // Feedback Functions
-export async function submitFeedback(feedback: Omit<ChatFeedback, "id" | "timestamp">) {
+export async function submitFeedback(feedback: Omit<ChatFeedback, "id" | "timestamp">): Promise<string> {
   try {
+    console.log("Submitting feedback to Firestore:", feedback)
+
     const docRef = await addDoc(collection(db, "chat_feedback"), {
       ...feedback,
       timestamp: serverTimestamp(),
     })
+
+    console.log("Feedback submitted successfully with ID:", docRef.id)
     return docRef.id
   } catch (error) {
     console.error("Error submitting feedback:", error)
@@ -211,10 +232,14 @@ export async function submitFeedback(feedback: Omit<ChatFeedback, "id" | "timest
 // Analytics Functions
 export async function logUserActivity(activity: Omit<UserActivity, "id" | "timestamp">) {
   try {
-    await addDoc(collection(db, "user_activity"), {
+    console.log("Logging user activity:", activity)
+
+    const docRef = await addDoc(collection(db, "user_activity"), {
       ...activity,
       timestamp: serverTimestamp(),
     })
+
+    console.log("User activity logged with ID:", docRef.id)
   } catch (error) {
     console.error("Error logging user activity:", error)
   }
@@ -222,18 +247,21 @@ export async function logUserActivity(activity: Omit<UserActivity, "id" | "times
 
 export async function updateAgentAnalytics(analytics: Omit<AgentAnalytics, "id" | "timestamp">) {
   try {
-    await addDoc(collection(db, "agent_analytics"), {
+    const docRef = await addDoc(collection(db, "agent_analytics"), {
       ...analytics,
       timestamp: serverTimestamp(),
     })
+    console.log("Agent analytics updated with ID:", docRef.id)
   } catch (error) {
     console.error("Error updating agent analytics:", error)
   }
 }
 
-// Data Fetching Functions
-export async function getFeedbackData(agentId?: string, days = 30) {
+// Data Fetching Functions with improved error handling and logging
+export async function getFeedbackData(agentId?: string, days = 30): Promise<ChatFeedback[]> {
   try {
+    console.log(`Fetching feedback data for ${days} days${agentId ? ` for agent ${agentId}` : ""}`)
+
     const feedbackRef = collection(db, "chat_feedback")
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days)
@@ -245,18 +273,29 @@ export async function getFeedbackData(agentId?: string, days = 30) {
     }
 
     const querySnapshot = await getDocs(q)
-    return querySnapshot.docs.map((doc) => ({
+    const feedbackData = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as ChatFeedback[]
+
+    console.log(`Retrieved ${feedbackData.length} feedback records`)
+
+    // Log sample data for debugging
+    if (feedbackData.length > 0) {
+      console.log("Sample feedback record:", feedbackData[0])
+    }
+
+    return feedbackData
   } catch (error) {
     console.error("Error fetching feedback data:", error)
     return []
   }
 }
 
-export async function getUserActivityData(days = 30) {
+export async function getUserActivityData(days = 30): Promise<UserActivity[]> {
   try {
+    console.log(`Fetching user activity data for ${days} days`)
+
     const activityRef = collection(db, "user_activity")
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - days)
@@ -264,12 +303,39 @@ export async function getUserActivityData(days = 30) {
     const q = query(activityRef, where("timestamp", ">=", Timestamp.fromDate(cutoffDate)))
 
     const querySnapshot = await getDocs(q)
-    return querySnapshot.docs.map((doc) => ({
+    const activityData = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as UserActivity[]
+
+    console.log(`Retrieved ${activityData.length} activity records`)
+    return activityData
   } catch (error) {
     console.error("Error fetching user activity data:", error)
+    return []
+  }
+}
+
+// Debug function to get all feedback (for testing)
+export async function getAllFeedbackData(): Promise<ChatFeedback[]> {
+  try {
+    console.log("Fetching ALL feedback data for debugging")
+
+    const feedbackRef = collection(db, "chat_feedback")
+    const q = query(feedbackRef, limit(100)) // Limit to prevent large queries
+
+    const querySnapshot = await getDocs(q)
+    const feedbackData = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as ChatFeedback[]
+
+    console.log(`Retrieved ${feedbackData.length} total feedback records`)
+    console.log("All feedback data:", feedbackData)
+
+    return feedbackData
+  } catch (error) {
+    console.error("Error fetching all feedback data:", error)
     return []
   }
 }

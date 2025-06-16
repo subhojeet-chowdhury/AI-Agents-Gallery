@@ -42,7 +42,14 @@ export default function FeedbackModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async () => {
-    if (!user || rating === 0) return
+    if (!user || rating === 0) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a rating before submitting.",
+        variant: "destructive",
+      })
+      return
+    }
 
     setIsSubmitting(true)
     try {
@@ -59,7 +66,9 @@ export default function FeedbackModal({
         chatDuration,
       }
 
-      await submitFeedback(feedbackData)
+      console.log("Submitting feedback:", feedbackData)
+      const feedbackId = await submitFeedback(feedbackData)
+      console.log("Feedback submitted with ID:", feedbackId)
 
       // Log feedback submission activity
       await logUserActivity({
@@ -69,21 +78,26 @@ export default function FeedbackModal({
         action: "feedback_submit",
         agentId,
         sessionId,
-        metadata: { rating, hasComment: !!comment.trim() },
+        metadata: {
+          rating,
+          hasComment: !!comment.trim(),
+          feedbackId,
+        },
       })
 
       toast({
-        title: "Feedback Submitted",
+        title: "Feedback Submitted Successfully!",
         description: "Thank you for your feedback! It helps us improve our AI agents.",
       })
 
+      // Reset form and close modal
       onClose()
       setRating(0)
       setComment("")
     } catch (error) {
       console.error("Error submitting feedback:", error)
       toast({
-        title: "Error",
+        title: "Submission Failed",
         description: "Failed to submit feedback. Please try again.",
         variant: "destructive",
       })
@@ -92,8 +106,16 @@ export default function FeedbackModal({
     }
   }
 
+  const handleClose = () => {
+    if (!isSubmitting) {
+      onClose()
+      setRating(0)
+      setComment("")
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Rate Your Experience</DialogTitle>
@@ -114,6 +136,7 @@ export default function FeedbackModal({
                   onMouseEnter={() => setHoveredRating(star)}
                   onMouseLeave={() => setHoveredRating(0)}
                   onClick={() => setRating(star)}
+                  disabled={isSubmitting}
                 >
                   <Star
                     className={`w-8 h-8 ${
@@ -142,6 +165,7 @@ export default function FeedbackModal({
               onChange={(e) => setComment(e.target.value)}
               rows={3}
               className="resize-none"
+              disabled={isSubmitting}
             />
           </div>
 
@@ -157,12 +181,20 @@ export default function FeedbackModal({
                 {chatDuration >= 60 ? `${Math.floor(chatDuration / 60)}m ${chatDuration % 60}s` : `${chatDuration}s`}
               </span>
             </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Agent:</span>
+              <span className="font-medium">{agentName}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Session ID:</span>
+              <span className="font-medium text-xs">{sessionId.slice(-8)}</span>
+            </div>
           </div>
         </div>
 
         <DialogFooter className="flex space-x-2">
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Skip
+          <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+            Cancel
           </Button>
           <Button
             onClick={handleSubmit}
@@ -170,7 +202,10 @@ export default function FeedbackModal({
             className="bg-blue-600 hover:bg-blue-700"
           >
             {isSubmitting ? (
-              "Submitting..."
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                Submitting...
+              </>
             ) : (
               <>
                 <Send className="w-4 h-4 mr-2" />

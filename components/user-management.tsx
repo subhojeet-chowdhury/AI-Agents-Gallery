@@ -49,10 +49,11 @@ export default function UserManagement() {
   }
 
   const handlePromoteUser = async (targetUser: UserProfile) => {
-    if (!user || !userProfile?.isSuperAdmin) {
+    // Simplified check - any admin can promote users in demo
+    if (!user || !userProfile?.isAdmin) {
       toast({
         title: "Access Denied",
-        description: "Only super administrators can promote users.",
+        description: "Only administrators can promote users.",
         variant: "destructive",
       })
       return
@@ -80,10 +81,21 @@ export default function UserManagement() {
   }
 
   const handleDemoteUser = async (targetUser: UserProfile) => {
-    if (!user || !userProfile?.isSuperAdmin) {
+    // Simplified check - any admin can demote users in demo (except super admins)
+    if (!user || !userProfile?.isAdmin) {
       toast({
         title: "Access Denied",
-        description: "Only super administrators can demote users.",
+        description: "Only administrators can demote users.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Prevent demoting super admins
+    if (targetUser.isSuperAdmin) {
+      toast({
+        title: "Cannot Demote",
+        description: "Super administrators cannot be demoted.",
         variant: "destructive",
       })
       return
@@ -180,6 +192,7 @@ export default function UserManagement() {
           <CardDescription>
             Manage user roles and permissions
             {userProfile?.isSuperAdmin && " (Super Admin privileges active)"}
+            {userProfile?.isAdmin && !userProfile?.isSuperAdmin && " (Admin privileges active)"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -229,8 +242,8 @@ export default function UserManagement() {
                     </Badge>
                   )}
 
-                  {/* Action Buttons - Only for Super Admins */}
-                  {userProfile?.isSuperAdmin && targetUser.uid !== user?.uid && (
+                  {/* Action Buttons - Any Admin can manage users (simplified for demo) */}
+                  {userProfile?.isAdmin && targetUser.uid !== user?.uid && (
                     <div className="flex space-x-2">
                       {!targetUser.isAdmin ? (
                         <Dialog>
@@ -311,20 +324,25 @@ export default function UserManagement() {
       </Card>
 
       {/* Admin Instructions */}
-      {userProfile?.isSuperAdmin && (
+      {userProfile?.isAdmin && (
         <Card className="bg-blue-50 border-blue-200">
           <CardHeader>
             <CardTitle className="flex items-center text-blue-900">
               <ShieldCheck className="w-5 h-5 mr-2" />
-              Super Administrator Privileges
+              {userProfile?.isSuperAdmin ? "Super Administrator" : "Administrator"} Privileges
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm text-blue-800 space-y-2">
               <p>• You can promote regular users to administrators</p>
-              <p>• You can demote administrators (except other super admins)</p>
-              <p>• Super admin status is permanent and cannot be changed through the UI</p>
-              <p>• New users with super admin emails get automatic super admin access</p>
+              <p>• You can demote administrators (except super admins)</p>
+              {userProfile?.isSuperAdmin && (
+                <>
+                  <p>• Super admin status is permanent and cannot be changed through the UI</p>
+                  <p>• New users with super admin emails get automatic super admin access</p>
+                </>
+              )}
+              <p className="font-medium">• Demo Mode: Simplified permissions for testing</p>
             </div>
           </CardContent>
         </Card>

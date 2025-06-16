@@ -111,6 +111,8 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
     setChatStartTime(Date.now())
     setCurrentConversation(null)
 
+    console.log("Starting new conversation with session ID:", newSessionId)
+
     // Set initial welcome message
     const welcomeMessage: ExtendedChatMessage = {
       id: "welcome",
@@ -154,6 +156,8 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
       // Use the existing session ID from the conversation
       sessionId.current = conversation.sessionId
       setChatStartTime(Date.now())
+
+      console.log("Loading conversation:", conversation.sessionId)
 
       // Load conversation messages
       const conversationMessages = await getConversationMessages(conversation.sessionId)
@@ -348,12 +352,14 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
   const handleQuickFeedback = async (messageId: string, feedbackType: "positive" | "negative") => {
     if (!user) return
 
+    console.log(`Submitting quick feedback: ${feedbackType} for message ${messageId}`)
+
     setMessages((prev) =>
       prev.map((msg) => (msg.id === messageId ? { ...msg, feedback: feedbackType, feedbackSubmitted: true } : msg)),
     )
 
     try {
-      await submitFeedback({
+      const feedbackData = {
         userId: user.uid,
         userName: user.displayName || "Anonymous",
         userEmail: user.email || "",
@@ -364,7 +370,11 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
         comment: `Quick feedback: ${feedbackType}`,
         messageCount: messages.filter((m) => m.isUser).length,
         chatDuration: Math.floor((Date.now() - chatStartTime) / 1000),
-      })
+      }
+
+      console.log("Quick feedback data:", feedbackData)
+
+      const feedbackId = await submitFeedback(feedbackData)
 
       await logUserActivity({
         userId: user.uid,
@@ -373,7 +383,12 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
         action: "feedback_submit",
         agentId: agent.id,
         sessionId: sessionId.current,
-        metadata: { type: "quick", feedback: feedbackType, messageId },
+        metadata: {
+          type: "quick",
+          feedback: feedbackType,
+          messageId,
+          feedbackId,
+        },
       })
 
       toast({
@@ -396,6 +411,11 @@ export default function ChatInterface({ agent, onBack }: ChatInterfaceProps) {
       }
     } catch (error) {
       console.error("Error submitting quick feedback:", error)
+      toast({
+        title: "Error",
+        description: "Failed to submit feedback. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 

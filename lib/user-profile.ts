@@ -67,7 +67,7 @@ export const LOCATIONS = [
   "New York, NY",
   "San Francisco, CA",
   "London, UK",
-  "Kolkata, India",
+  "Mumbai, India",
   "Singapore",
   "Toronto, Canada",
   "Sydney, Australia",
@@ -75,7 +75,7 @@ export const LOCATIONS = [
   "Other",
 ]
 
-// Super Admin emails - these get automatic admin access on first login
+
 const SUPER_ADMIN_EMAILS = [
   "subhojeet.chowdhury.work@gmail.com", 
 ]
@@ -143,13 +143,13 @@ export async function updateUserProfile(uid: string, updates: Partial<UserProfil
   }
 }
 
-// Promote user to admin (only super admins can do this)
+// Promote user to admin (simplified for demo - any admin can promote)
 export async function promoteUserToAdmin(uid: string, promotedBy: string): Promise<void> {
   try {
-    // Check if the person promoting is a super admin
+    // Simplified check for demo - just verify the promoter is authenticated
     const promoterProfile = await getUserProfile(promotedBy)
-    if (!promoterProfile?.isSuperAdmin) {
-      throw new Error("Only super administrators can promote users to admin")
+    if (!promoterProfile?.isAdmin) {
+      throw new Error("Only administrators can promote users to admin")
     }
 
     await updateDoc(doc(db, "user_profiles", uid), {
@@ -162,13 +162,13 @@ export async function promoteUserToAdmin(uid: string, promotedBy: string): Promi
   }
 }
 
-// Demote user from admin (only super admins can do this)
+// Demote user from admin (simplified for demo - any admin can demote, except super admins)
 export async function demoteUserFromAdmin(uid: string, demotedBy: string): Promise<void> {
   try {
-    // Check if the person demoting is a super admin
+    // Simplified check for demo - just verify the demoter is authenticated
     const demoterProfile = await getUserProfile(demotedBy)
-    if (!demoterProfile?.isSuperAdmin) {
-      throw new Error("Only super administrators can demote admins")
+    if (!demoterProfile?.isAdmin) {
+      throw new Error("Only administrators can demote admins")
     }
 
     // Get the user being demoted

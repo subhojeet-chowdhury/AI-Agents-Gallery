@@ -37,8 +37,9 @@ import {
   LogOut,
   Settings,
   ArrowLeft,
+  AlertCircle,
 } from "lucide-react"
-import { getFeedbackData, getUserActivityData } from "@/lib/firebase-client"
+import { getFeedbackData, getUserActivityData, getAllFeedbackData } from "@/lib/firebase-client"
 import { getAllUserProfiles } from "@/lib/user-profile"
 import { ensureAllAgentsInAnalytics } from "@/lib/initialize-agent-data"
 import type { ChatFeedback, UserActivity } from "@/lib/firebase-client"
@@ -47,6 +48,7 @@ import { AGENT_CONFIG } from "@/lib/agent-config"
 import ExportModal from "@/components/export-modal"
 import ReportsGenerator from "@/components/reports-generator"
 import UserManagement from "@/components/user-management"
+import { toast } from "@/hooks/use-toast"
 
 interface DashboardStats {
   totalChats: number
@@ -76,6 +78,7 @@ export default function AdminDashboard() {
   const [feedbackData, setFeedbackData] = useState<ChatFeedback[]>([])
   const [userActivity, setUserActivity] = useState<UserActivity[]>([])
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([])
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null)
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     totalChats: 0,
     totalUsers: 0,
@@ -88,15 +91,38 @@ export default function AdminDashboard() {
   const loadData = async () => {
     try {
       setRefreshing(true)
+      setDataLoadError(null)
+
+      console.log("Loading admin dashboard data...")
 
       // Ensure all agents (including new ones) are initialized in analytics
       await ensureAllAgentsInAnalytics()
 
+      // Load data with error handling for each source
       const [feedback, activity, profiles] = await Promise.all([
-        getFeedbackData(undefined, 30), // Last 30 days
-        getUserActivityData(30),
-        getAllUserProfiles(),
+        getFeedbackData(undefined, 30).catch((error) => {
+          console.error("Error loading feedback:", error)
+          return []
+        }),
+        getUserActivityData(30).catch((error) => {
+          console.error("Error loading activity:", error)
+          return []
+        }),
+        getAllUserProfiles().catch((error) => {
+          console.error("Error loading profiles:", error)
+          return []
+        }),
       ])
+
+      console.log("Data loaded:", {
+        feedback: feedback.length,
+        activity: activity.length,
+        profiles: profiles.length,
+      })
+
+      // Also try to load ALL feedback for debugging
+      const allFeedback = await getAllFeedbackData()
+      console.log("All feedback data:", allFeedback)
 
       setFeedbackData(feedback)
       setUserActivity(activity)
@@ -108,16 +134,29 @@ export default function AdminDashboard() {
       const totalDuration = feedback.reduce((sum, f) => sum + f.chatDuration, 0)
       const averageRating = feedback.length > 0 ? feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length : 0
 
-      setDashboardStats({
+      const stats = {
         totalChats: feedback.length,
         totalUsers: uniqueUsers,
         totalFeedbacks: feedback.length,
         averageRating: Math.round(averageRating * 10) / 10,
         totalMessages,
         averageChatDuration: feedback.length > 0 ? Math.round(totalDuration / feedback.length) : 0,
-      })
+      }
+
+      console.log("Calculated stats:", stats)
+      setDashboardStats(stats)
+
+      if (feedback.length === 0) {
+        setDataLoadError("No feedback data found. Try submitting some feedback first.")
+      }
     } catch (error) {
       console.error("Error loading dashboard data:", error)
+      setDataLoadError("Failed to load dashboard data. Please try refreshing.")
+      toast({
+        title: "Data Load Error",
+        description: "Some dashboard data may not be available.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -306,6 +345,19 @@ export default function AdminDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Data Load Error Alert */}
+        {dataLoadError && (
+          <Card className="mb-6 border-orange-200 bg-orange-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2 text-orange-800">
+                <AlertCircle className="h-5 w-5" />
+                <span className="font-medium">Data Notice:</span>
+                <span>{dataLoadError}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -566,39 +618,83 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Recent Feedback</CardTitle>
-                <CardDescription>Latest user feedback and ratings</CardDescription>
+                <CardDescription>
+                  Latest user feedback and ratings ({feedbackData.length} total records) - sorted by most recent
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {feedbackData.slice(0, 10).map((feedback) => (
-                    <div key={feedback.id} className="border rounded-lg p-4 bg-white">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <div className="font-medium">{feedback.userName}</div>
-                            <Badge variant="outline">{feedback.agentName}</Badge>
-                            <div className="flex items-center">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`w-4 h-4 ${
-                                    i < feedback.rating ? "text-yellow-400 fill-current" : "text-gray-300"
-                                  }`}
-                                />
-                              ))}
+                  {feedbackData.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MessageSquare className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+                      <p>No feedback data available yet.</p>
+                      <p className="text-sm">Submit some feedback through the chat interface to see data here.</p>
+                    </div>
+                  ) : (
+                    feedbackData
+                      .sort((a, b) => {
+                        // Sort by timestamp, newest first
+                        const timeA = a.timestamp?.toDate?.() || new Date(a.timestamp?.toString() || 0)
+                        const timeB = b.timestamp?.toDate?.() || new Date(b.timestamp?.toString() || 0)
+                        return timeB.getTime() - timeA.getTime()
+                      })
+                      .slice(0, 20) // Show latest 20 feedback entries
+                      .map((feedback) => (
+                        <div key={feedback.id} className="border rounded-lg p-4 bg-white">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <div className="font-medium">{feedback.userName}</div>
+                                <Badge variant="outline">{feedback.agentName}</Badge>
+                                <div className="flex items-center">
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`w-4 h-4 ${
+                                        i < feedback.rating ? "text-yellow-400 fill-current" : "text-gray-300"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                                <Badge variant="secondary" className="text-xs">
+                                  {feedback.rating === 5
+                                    ? "Excellent"
+                                    : feedback.rating === 4
+                                      ? "Very Good"
+                                      : feedback.rating === 3
+                                        ? "Good"
+                                        : feedback.rating === 2
+                                          ? "Fair"
+                                          : "Poor"}
+                                </Badge>
+                              </div>
+                              {feedback.comment && <p className="text-sm text-slate-600 mb-2">"{feedback.comment}"</p>}
+                              <div className="text-xs text-slate-500">
+                                {feedback.messageCount} messages • {Math.floor(feedback.chatDuration / 60)}m{" "}
+                                {feedback.chatDuration % 60}s • Session: {feedback.sessionId.slice(-8)}
+                              </div>
+                            </div>
+                            <div className="text-xs text-slate-500 text-right">
+                              <div>{feedback.timestamp.toDate().toLocaleDateString()}</div>
+                              <div className="text-slate-400">
+                                {feedback.timestamp.toDate().toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
                             </div>
                           </div>
-                          {feedback.comment && <p className="text-sm text-slate-600 mb-2">"{feedback.comment}"</p>}
-                          <div className="text-xs text-slate-500">
-                            {feedback.messageCount} messages • {Math.floor(feedback.chatDuration / 60)}m{" "}
-                            {feedback.chatDuration % 60}s
-                          </div>
                         </div>
-                        <div className="text-xs text-slate-500">{feedback.timestamp.toDate().toLocaleDateString()}</div>
-                      </div>
-                    </div>
-                  ))}
+                      ))
+                  )}
                 </div>
+                {feedbackData.length > 20 && (
+                  <div className="text-center pt-4 border-t">
+                    <p className="text-sm text-slate-500">
+                      Showing latest 20 of {feedbackData.length} feedback entries
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -703,19 +799,19 @@ export default function AdminDashboard() {
 
           {/* Users Tab - Only for Super Admins */}
           <TabsContent value="users" className="space-y-6">
-            {userProfile?.isSuperAdmin ? (
+            {userProfile?.isAdmin ? (
               <UserManagement />
             ) : (
               <Card>
                 <CardHeader>
                   <CardTitle>Access Restricted</CardTitle>
-                  <CardDescription>Only super administrators can manage users</CardDescription>
+                  <CardDescription>Only administrators can manage users</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center py-8">
                     <Settings className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground">
-                      You need super administrator privileges to access user management.
+                      You need administrator privileges to access user management.
                     </p>
                   </div>
                 </CardContent>
